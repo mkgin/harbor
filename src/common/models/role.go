@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 package models
 
 const (
-	//PROJECTADMIN project administrator
+	// PROJECTADMIN project administrator
 	PROJECTADMIN = 1
-	//DEVELOPER developer
+	// DEVELOPER developer
 	DEVELOPER = 2
-	//GUEST guest
+	// GUEST guest
 	GUEST = 3
 )
 
@@ -29,5 +29,5 @@ type Role struct {
 	RoleCode string `orm:"column(role_code)" json:"role_code"`
 	Name     string `orm:"column(name)" json:"role_name"`
 
-	RoleMask int `orm:"role_mask" json:"role_mask"`
+	RoleMask int `orm:"column(role_mask)" json:"role_mask"`
 }

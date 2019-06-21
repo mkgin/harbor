@@ -1,4 +1,4 @@
-# Copyright 2016-2017 VMware, Inc. All Rights Reserved.
+# Copyright Project Harbor Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,17 +20,13 @@ Library  Process
 *** Keywords ***
 Run Docker Info
     [Arguments]  ${docker-params}
-    ${rc}=  Run And Return Rc  docker ${docker-params} info
-    Should Be Equal As Integers  ${rc}  0
+    Wait Unitl Command Success  docker ${docker-params} info
 
 Pull image
     [Arguments]  ${ip}  ${user}  ${pwd}  ${project}  ${image}
     Log To Console  \nRunning docker pull ${image}...
-    ${rc}  ${output}=  Run And Return Rc And Output  docker login -u ${user} -p ${pwd} ${ip}
-    Should Be Equal As Integers  ${rc}  0
-    ${rc}  ${output}=  Run And Return Rc And Output  docker pull ${ip}/${project}/${image}
-    Log  ${output}
-    Should Be Equal As Integers  ${rc}  0
+    Wait Unitl Command Success  docker login -u ${user} -p ${pwd} ${ip}
+    ${output}=  Wait Unitl Command Success  docker pull ${ip}/${project}/${image}
     Should Contain  ${output}  Digest:
     Should Contain  ${output}  Status:
     Should Not Contain  ${output}  No such image:
@@ -38,23 +34,45 @@ Pull image
 Push image
     [Arguments]  ${ip}  ${user}  ${pwd}  ${project}  ${image}
     Log To Console  \nRunning docker push ${image}...
-    ${rc}=  Run And Return Rc  docker pull ${image}
-    ${rc}  ${output}=  Run And Return Rc And Output  docker login -u ${user} -p ${pwd} ${ip}
-	Log To Console  ${output}
-    Should Be Equal As Integers  ${rc}  0
-    ${rc}=  Run And Return Rc  docker tag ${image} ${ip}/${project}/${image}
-    ${rc}  ${output}=  Run And Return Rc And Output  docker push ${ip}/${project}/${image}
-	Log To Console  ${output}
-    Should Be Equal As Integers  ${rc}  0
-    ${rc}=  Run And Return Rc  docker logout ${ip}
+    Wait Unitl Command Success  docker pull ${image}
+    Wait Unitl Command Success  docker login -u ${user} -p ${pwd} ${ip}
+    Wait Unitl Command Success  docker tag ${image} ${ip}/${project}/${image}
+    Wait Unitl Command Success  docker push ${ip}/${project}/${image}
+    Wait Unitl Command Success  docker logout ${ip}
+
+Push Image With Tag
+#tag1 is tag of image on docker hub,default latest,use a version existing if you do not want to use latest
+    [Arguments]  ${ip}  ${user}  ${pwd}  ${project}  ${image}  ${tag}  ${tag1}=latest
+    Log To Console  \nRunning docker push ${image}...
+    Wait Unitl Command Success  docker pull ${image}:${tag1}
+    Wait Unitl Command Success  docker login -u ${user} -p ${pwd} ${ip}
+    Wait Unitl Command Success  docker tag ${image}:${tag1} ${ip}/${project}/${image}:${tag}
+    Wait Unitl Command Success  docker push ${ip}/${project}/${image}:${tag}
+    Wait Unitl Command Success  docker logout ${ip}
+
+Cannot Docker Login Harbor
+    [Arguments]  ${ip}  ${user}  ${pwd}
+    Command Should be Failed  docker login -u ${user} -p ${pwd} ${ip}
 
 Cannot Pull image
     [Arguments]  ${ip}  ${user}  ${pwd}  ${project}  ${image}
-    ${rc}  ${output}=  Run And Return Rc And Output  docker login -u ${user} -p ${pwd} ${ip}
-    Should Be Equal As Integers  ${rc}  0
-    ${rc}  ${output}=  Run And Return Rc And Output  docker pull ${ip}/${project}/${image}
-    Log To Console  ${output}
-    Should Not Be Equal As Integers  ${rc}  0
+    Wait Unitl Command Success  docker login -u ${user} -p ${pwd} ${ip}
+    Command Should be Failed  docker pull ${ip}/${project}/${image}
+
+Cannot Pull Unsigned Image
+    [Arguments]  ${ip}  ${user}  ${pass}  ${proj}  ${imagewithtag}
+    Wait Unitl Command Success  docker login -u ${user} -p ${pass} ${ip}
+    ${output}=  Command Should be Failed  docker pull ${ip}/${proj}/${imagewithtag}
+    Should Contain  ${output}  The image is not signed in Notary
+
+Cannot Push image
+    [Arguments]  ${ip}  ${user}  ${pwd}  ${project}  ${image}
+    Log To Console  \nRunning docker push ${image}...
+    Wait Unitl Command Success  docker pull ${image}
+    Wait Unitl Command Success  docker login -u ${user} -p ${pwd} ${ip}
+    Wait Unitl Command Success  docker tag ${image} ${ip}/${project}/${image}
+    Command Should be Failed  docker push ${ip}/${project}/${image}
+    Wait Unitl Command Success  docker logout ${ip}
 
 Wait Until Container Stops
     [Arguments]  ${container}
@@ -67,13 +85,11 @@ Wait Until Container Stops
 
 Hit Nginx Endpoint
     [Arguments]  ${vch-ip}  ${port}
-    ${rc}  ${output}=  Run And Return Rc And Output  wget ${vch-ip}:${port}
-    Should Be Equal As Integers  ${rc}  0
+    Wait Unitl Command Success  wget ${vch-ip}:${port}
 
 Get Container IP
     [Arguments]  ${docker-params}  ${id}  ${network}=default  ${dockercmd}=docker
-    ${rc}  ${ip}=  Run And Return Rc And Output  ${dockercmd} ${docker-params} network inspect ${network} | jq '.[0].Containers."${id}".IPv4Address' | cut -d \\" -f 2 | cut -d \\/ -f 1
-    Should Be Equal As Integers  ${rc}  0
+    ${ip}=  Wait Unitl Command Success  ${dockercmd} ${docker-params} network inspect ${network} | jq '.[0].Containers."${id}".IPv4Address' | cut -d \\" -f 2 | cut -d \\/ -f 1
     [Return]  ${ip}
 
 # The local dind version is embedded in Dockerfile
@@ -92,9 +108,36 @@ Start Docker Daemon Locally
     Sleep  2s
     [Return]  ${handle}
 
+Prepare Docker Cert
+    [Arguments]  ${ip}
+    Wait Unitl Command Success  mkdir -p /etc/docker/certs.d/${ip}
+    Wait Unitl Command Success  cp harbor_ca.crt /etc/docker/certs.d/${ip}
+
 Kill Local Docker Daemon
     [Arguments]  ${handle}  ${dockerd-pid}
     Terminate Process  ${handle}
     Process Should Be Stopped  ${handle}
-    ${rc}=  Run And Return Rc  kill -9 ${dockerd-pid}
-    Should Be Equal As Integers  ${rc}  0
+    Wait Unitl Command Success  kill -9 ${dockerd-pid}
+
+Docker Login Fail
+    [Arguments]  ${ip}  ${user}  ${pwd}
+    Log To Console  \nRunning docker login ${ip} ...
+    ${output}=  Command Should be Failed  docker login -u ${user} -p ${pwd} ${ip}
+    Should Contain  ${output}  unauthorized: authentication required
+    Should Not Contain  ${output}  500 Internal Server Error
+
+Docker Login
+    [Arguments]  ${server}  ${username}  ${password}
+    Wait Unitl Command Success  docker login -u ${username} -p ${password} ${server}
+
+Docker Pull
+    [Arguments]  ${image}
+    Wait Unitl Command Success  docker pull ${image}
+
+Docker Tag
+    [Arguments]  ${src_image}   ${dst_image}
+    Wait Unitl Command Success  docker tag ${src_image} ${dst_image}
+
+Docker Push
+    [Arguments]  ${image}
+    Wait Unitl Command Success  docker push ${image}

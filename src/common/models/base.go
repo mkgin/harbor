@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,7 @@ import (
 )
 
 func init() {
-	orm.RegisterModel(new(RepTarget),
-		new(RepPolicy),
-		new(RepJob),
+	orm.RegisterModel(
 		new(User),
 		new(Project),
 		new(Role),
@@ -29,5 +27,14 @@ func init() {
 		new(ScanJob),
 		new(RepoRecord),
 		new(ImgScanOverview),
-		new(ClairVulnTimestamp))
+		new(ClairVulnTimestamp),
+		new(ProjectMetadata),
+		new(ConfigEntry),
+		new(Label),
+		new(ResourceLabel),
+		new(UserGroup),
+		new(AdminJob),
+		new(JobLog),
+		new(Robot),
+		new(OIDCUser))
 }

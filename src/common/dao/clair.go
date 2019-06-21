@@ -1,4 +1,4 @@
-// copyright (c) 2017 vmware, inc. all rights reserved.
+// Copyright Project Harbor Authors
 //
 // licensed under the apache license, version 2.0 (the "license");
 // you may not use this file except in compliance with the license.
@@ -15,13 +15,13 @@
 package dao
 
 import (
-	"github.com/vmware/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/utils/log"
 
-	"fmt"
 	"time"
 )
 
-//SetClairVulnTimestamp update the last_update of a namespace. If there's no record for this namespace, one will be created.
+// SetClairVulnTimestamp update the last_update of a namespace. If there's no record for this namespace, one will be created.
 func SetClairVulnTimestamp(namespace string, timestamp time.Time) error {
 	o := GetOrmer()
 	rec := &models.ClairVulnTimestamp{
@@ -35,17 +35,15 @@ func SetClairVulnTimestamp(namespace string, timestamp time.Time) error {
 	if !created {
 		rec.LastUpdate = timestamp
 		n, err := o.Update(rec)
-		if err != nil {
-			return err
-		}
 		if n == 0 {
-			return fmt.Errorf("No record is updated, record: %v", *rec)
+			log.Warningf("no records are updated for %v", *rec)
 		}
+		return err
 	}
 	return nil
 }
 
-//ListClairVulnTimestamps return a list of all records in vuln timestamp table.
+// ListClairVulnTimestamps return a list of all records in vuln timestamp table.
 func ListClairVulnTimestamps() ([]*models.ClairVulnTimestamp, error) {
 	var res []*models.ClairVulnTimestamp
 	o := GetOrmer()

@@ -26,15 +26,15 @@ data:
         addr: localhost:5001
     auth:
       token:
-        issuer: registry-token-issuer
-        realm: {{ui_url}}/service/token
-        rootcertbundle: /etc/docker/registry/root.crt
-        service: token-service
+        issuer: harbor-token-issuer
+        realm: {{core_url}}/service/token
+        rootcertbundle: /etc/registry/root.crt
+        service: harbor-registry
     notifications:
       endpoints:
         - name: harbor
           disabled: false
-          url: http://ui/service/notifications
+          url: http://core/service/notifications
           timeout: 3000ms
           threshold: 5
           backoff: 1s

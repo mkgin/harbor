@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,37 +23,30 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseEndpoint(t *testing.T) {
-	endpoint := "example.com"
-	u, err := ParseEndpoint(endpoint)
-	if err != nil {
-		t.Fatalf("failed to parse endpoint %s: %v", endpoint, err)
+	cases := []struct {
+		input    string
+		err      bool
+		expected string
+	}{
+		{" example.com/ ", false, "http://example.com"},
+		{"ftp://example.com", true, ""},
+		{"http://example.com", false, "http://example.com"},
+		{"https://example.com", false, "https://example.com"},
+		{"http://example!@#!?//#", true, ""},
 	}
 
-	if u.String() != "http://example.com" {
-		t.Errorf("unexpected endpoint: %s != %s", endpoint, "http://example.com")
-	}
-
-	endpoint = "https://example.com"
-	u, err = ParseEndpoint(endpoint)
-	if err != nil {
-		t.Fatalf("failed to parse endpoint %s: %v", endpoint, err)
-	}
-
-	if u.String() != "https://example.com" {
-		t.Errorf("unexpected endpoint: %s != %s", endpoint, "https://example.com")
-	}
-
-	endpoint = "  example.com/ "
-	u, err = ParseEndpoint(endpoint)
-	if err != nil {
-		t.Fatalf("failed to parse endpoint %s: %v", endpoint, err)
-	}
-
-	if u.String() != "http://example.com" {
-		t.Errorf("unexpected endpoint: %s != %s", endpoint, "http://example.com")
+	for _, c := range cases {
+		u, err := ParseEndpoint(c.input)
+		if c.err {
+			require.NotNil(t, err)
+			continue
+		}
+		require.Nil(t, err)
+		assert.Equal(t, c.expected, u.String())
 	}
 }
 
@@ -128,7 +121,7 @@ func TestReversibleEncrypt(t *testing.T) {
 	if decrypted != password {
 		t.Errorf("decrypted password: %s, is not identical to original", decrypted)
 	}
-	//Test b64 for backward compatibility
+	// Test b64 for backward compatibility
 	b64password := base64.StdEncoding.EncodeToString([]byte(password))
 	decrypted, err = ReversibleDecrypt(b64password, key)
 	if err != nil {
@@ -217,14 +210,6 @@ func TestParseHarborIDOrName(t *testing.T) {
 	id, name, err := ParseProjectIDOrName(nil)
 	assert.NotNil(t, err)
 
-	// invalid ID
-	id, name, err = ParseProjectIDOrName(0)
-	assert.NotNil(t, err)
-
-	// invalid name
-	id, name, err = ParseProjectIDOrName("")
-	assert.NotNil(t, err)
-
 	// valid int ID
 	id, name, err = ParseProjectIDOrName(1)
 	assert.Nil(t, err)
@@ -261,5 +246,138 @@ func TestConvertMapToStruct(t *testing.T) {
 		if obj.Name != "testing" || obj.Count != 100 {
 			t.Fail()
 		}
+	}
+}
+
+func TestSafeCastString(t *testing.T) {
+	type args struct {
+		value interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{"nil value", args{nil}, ""},
+		{"normal string", args{"sample"}, "sample"},
+		{"wrong type", args{12}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SafeCastString(tt.args.value); got != tt.want {
+				t.Errorf("SafeCastString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSafeCastBool(t *testing.T) {
+	type args struct {
+		value interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{"nil value", args{nil}, false},
+		{"normal bool", args{true}, true},
+		{"wrong type", args{"true"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SafeCastBool(tt.args.value); got != tt.want {
+				t.Errorf("SafeCastBool() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSafeCastInt(t *testing.T) {
+	type args struct {
+		value interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{"nil value", args{nil}, 0},
+		{"normal int", args{1234}, 1234},
+		{"wrong type", args{"sample"}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SafeCastInt(tt.args.value); got != tt.want {
+				t.Errorf("SafeCastInt() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSafeCastFloat64(t *testing.T) {
+	type args struct {
+		value interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{"nil value", args{nil}, 0},
+		{"normal float64", args{12.34}, 12.34},
+		{"wrong type", args{false}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SafeCastFloat64(tt.args.value); got != tt.want {
+				t.Errorf("SafeCastFloat64() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseOfftime(t *testing.T) {
+	cases := []struct {
+		offtime int64
+		hour    int
+		minite  int
+		second  int
+	}{
+		{0, 0, 0, 0},
+		{1, 0, 0, 1},
+		{60, 0, 1, 0},
+		{3600, 1, 0, 0},
+		{3661, 1, 1, 1},
+		{3600*24 + 60, 0, 1, 0},
+	}
+
+	for _, c := range cases {
+		h, m, s := ParseOfftime(c.offtime)
+		assert.Equal(t, c.hour, h)
+		assert.Equal(t, c.minite, m)
+		assert.Equal(t, c.second, s)
+	}
+}
+
+func TestTrimLower(t *testing.T) {
+	type args struct {
+		str string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{"normal", args{" CN=example,DC=test,DC=com "}, "cn=example,dc=test,dc=com"},
+		{"empty", args{" "}, ""},
+		{"empty2", args{""}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TrimLower(tt.args.str); got != tt.want {
+				t.Errorf("TrimLower() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

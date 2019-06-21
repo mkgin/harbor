@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,20 +23,20 @@ import (
 	"strings"
 
 	"github.com/docker/distribution/registry/auth/token"
-	"github.com/docker/notary"
-	"github.com/docker/notary/client"
-	"github.com/docker/notary/trustpinning"
-	"github.com/docker/notary/tuf/data"
-	"github.com/vmware/harbor/src/common/utils/log"
-	"github.com/vmware/harbor/src/common/utils/registry"
-	"github.com/vmware/harbor/src/ui/config"
-	tokenutil "github.com/vmware/harbor/src/ui/service/token"
+	"github.com/goharbor/harbor/src/common/utils/log"
+	"github.com/goharbor/harbor/src/common/utils/registry"
+	"github.com/goharbor/harbor/src/core/config"
+	tokenutil "github.com/goharbor/harbor/src/core/service/token"
+	"github.com/theupdateframework/notary"
+	"github.com/theupdateframework/notary/client"
+	"github.com/theupdateframework/notary/trustpinning"
+	"github.com/theupdateframework/notary/tuf/data"
 
-	"github.com/opencontainers/go-digest"
+	digest "github.com/opencontainers/go-digest"
 )
 
 var (
-	notaryCachePath = "/root/notary"
+	notaryCachePath = "/tmp/notary-cache"
 	trustPin        trustpinning.TrustPinConfig
 	mockRetriever   notary.PassRetriever
 )
@@ -46,7 +46,7 @@ var (
 type Target struct {
 	Tag    string      `json:"tag"`
 	Hashes data.Hashes `json:"hashes"`
-	//TODO: update fields as needed.
+	// TODO: update fields as needed.
 }
 
 func init() {
@@ -78,7 +78,7 @@ func GetTargets(notaryEndpoint string, username string, fqRepo string) ([]Target
 	res := []Target{}
 	t, err := tokenutil.MakeToken(username, tokenutil.Notary,
 		[]*token.ResourceActions{
-			&token.ResourceActions{
+			{
 				Type:    "repository",
 				Name:    fqRepo,
 				Actions: []string{"pull"},
@@ -89,9 +89,9 @@ func GetTargets(notaryEndpoint string, username string, fqRepo string) ([]Target
 	authorizer := &notaryAuthorizer{
 		token: t.Token,
 	}
-	tr := registry.NewTransport(registry.GetHTTPTransport(true), authorizer)
+	tr := registry.NewTransport(registry.GetHTTPTransport(), authorizer)
 	gun := data.GUN(fqRepo)
-	notaryRepo, err := client.NewFileCachedNotaryRepository(notaryCachePath, gun, notaryEndpoint, tr, mockRetriever, trustPin)
+	notaryRepo, err := client.NewFileCachedRepository(notaryCachePath, gun, notaryEndpoint, tr, mockRetriever, trustPin)
 	if err != nil {
 		return res, err
 	}
@@ -102,7 +102,7 @@ func GetTargets(notaryEndpoint string, username string, fqRepo string) ([]Target
 	} else if err != nil {
 		return res, err
 	}
-	//Remove root.json such that when remote repository is removed the local cache can't be reused.
+	// Remove root.json such that when remote repository is removed the local cache can't be reused.
 	rootJSON := path.Join(notaryCachePath, "tuf", fqRepo, "metadata/root.json")
 	rmErr := os.Remove(rootJSON)
 	if rmErr != nil {

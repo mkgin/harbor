@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,23 +23,10 @@ type Authentication struct {
 }
 */
 
-// LDAP ...
-type LDAP struct {
-	URL            string `json:"url"`
-	SearchDN       string `json:"search_dn"`
-	SearchPassword string `json:"search_password"`
-	BaseDN         string `json:"base_dn"`
-	Filter         string `json:"filter"`
-	UID            string `json:"uid"`
-	Scope          int    `json:"scope"`
-	Timeout        int    `json:"timeout"` // in second
-}
-
 // Database ...
 type Database struct {
-	Type   string  `json:"type"`
-	MySQL  *MySQL  `json:"mysql,omitempty"`
-	SQLite *SQLite `json:"sqlite,omitempty"`
+	Type       string      `json:"type"`
+	PostGreSQL *PostGreSQL `json:"postgresql,omitempty"`
 }
 
 // MySQL ...
@@ -56,6 +43,16 @@ type SQLite struct {
 	File string `json:"file"`
 }
 
+// PostGreSQL ...
+type PostGreSQL struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password,omitempty"`
+	Database string `json:"database"`
+	SSLMode  string `json:"sslmode"`
+}
+
 // Email ...
 type Email struct {
 	Host     string `json:"host"`
@@ -65,34 +62,36 @@ type Email struct {
 	SSL      bool   `json:"ssl"`
 	Identity string `json:"identity"`
 	From     string `json:"from"`
+	Insecure bool   `json:"insecure"`
 }
 
-/*
-// Registry ...
-type Registry struct {
-	URL string `json:"url"`
+// HTTPAuthProxy wraps the settings for HTTP auth proxy
+type HTTPAuthProxy struct {
+	Endpoint            string `json:"endpoint"`
+	TokenReviewEndpoint string `json:"tokenreivew_endpoint"`
+	VerifyCert          bool   `json:"verify_cert"`
+	AlwaysOnBoard       bool   `json:"always_onboard"`
 }
 
-// TokenService ...
-type TokenService struct {
-	URL string `json:"url"`
+// OIDCSetting wraps the settings for OIDC auth endpoint
+type OIDCSetting struct {
+	Name         string   `json:"name"`
+	Endpoint     string   `json:"endpoint"`
+	VerifyCert   bool     `json:"verify_cert"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"client_secret"`
+	RedirectURL  string   `json:"redirect_url"`
+	Scope        []string `json:"scope"`
 }
 
-// SystemCfg holds all configurations of system
-type SystemCfg struct {
-	DomainName                 string          `json:"domain_name"` // Harbor external URL: protocal://host:port
-	Authentication             *Authentication `json:"authentication"`
-	Database                   *Database       `json:"database"`
-	TokenService               *TokenService   `json:"token_service"`
-	Registry                   *Registry       `json:"registry"`
-	Email                      *Email          `json:"email"`
-	VerifyRemoteCert           bool            `json:"verify_remote_cert"`
-	ProjectCreationRestriction string          `json:"project_creation_restriction"`
-	MaxJobWorkers              int             `json:"max_job_workers"`
-	JobLogDir                  string          `json:"job_log_dir"`
-	InitialAdminPwd            string          `json:"initial_admin_pwd,omitempty"`
-	TokenExpiration            int             `json:"token_expiration"` // in minute
-	SecretKey                  string          `json:"secret_key,omitempty"`
-	CfgExpiration              int             `json:"cfg_expiration"`
+// ConfigEntry ...
+type ConfigEntry struct {
+	ID    int64  `orm:"pk;auto;column(id)" json:"-"`
+	Key   string `orm:"column(k)" json:"k"`
+	Value string `orm:"column(v)" json:"v"`
 }
-*/
+
+// TableName ...
+func (ce *ConfigEntry) TableName() string {
+	return "properties"
+}

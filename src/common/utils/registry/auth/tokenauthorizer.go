@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,19 +23,30 @@ import (
 	"time"
 
 	"github.com/docker/distribution/registry/auth/token"
-	"github.com/vmware/harbor/src/common/models"
-	"github.com/vmware/harbor/src/common/utils/log"
-	"github.com/vmware/harbor/src/common/utils/registry"
-	token_util "github.com/vmware/harbor/src/ui/service/token"
+	"github.com/goharbor/harbor/src/common/http/modifier"
+	"github.com/goharbor/harbor/src/common/models"
+	"github.com/goharbor/harbor/src/common/utils/log"
+	token_util "github.com/goharbor/harbor/src/core/service/token"
 )
 
 const (
-	latency int = 10 //second, the network latency when token is received
+	latency int = 10 // second, the network latency when token is received
 	scheme      = "bearer"
 )
 
 type tokenGenerator interface {
 	generate(scopes []*token.ResourceActions, endpoint string) (*models.Token, error)
+}
+
+// UserAgentModifier adds the "User-Agent" header to the request
+type UserAgentModifier struct {
+	UserAgent string
+}
+
+// Modify adds user-agent header to the request
+func (u *UserAgentModifier) Modify(req *http.Request) error {
+	req.Header.Set(http.CanonicalHeaderKey("User-Agent"), u.UserAgent)
+	return nil
 }
 
 // tokenAuthorizer implements registry.Modifier interface. It parses scopses
@@ -51,7 +62,7 @@ type tokenAuthorizer struct {
 
 // add token to the request
 func (t *tokenAuthorizer) Modify(req *http.Request) error {
-	//only handle requests sent to registry
+	// only handle requests sent to registry
 	goon, err := t.filterReq(req)
 	if err != nil {
 		return err
@@ -164,7 +175,7 @@ func parseScopes(req *http.Request) ([]*token.ResourceActions, error) {
 		case http.MethodGet, http.MethodHead:
 			scope.Actions = []string{"pull"}
 		case http.MethodPost, http.MethodPut, http.MethodPatch:
-			scope.Actions = []string{"push"}
+			scope.Actions = []string{"pull", "push"}
 		case http.MethodDelete:
 			scope.Actions = []string{"*"}
 		default:
@@ -182,7 +193,7 @@ func parseScopes(req *http.Request) ([]*token.ResourceActions, error) {
 		// base
 		scope = nil
 	} else {
-		// unknow
+		// unknown
 		return scopes, fmt.Errorf("can not parse scope from the request: %s %s", req.Method, req.URL.Path)
 	}
 
@@ -194,7 +205,7 @@ func parseScopes(req *http.Request) ([]*token.ResourceActions, error) {
 	for _, s := range scopes {
 		strs = append(strs, scopeString(s))
 	}
-	log.Debugf("scopses parsed from request: %s", strings.Join(strs, " "))
+	log.Debugf("scopes parsed from request: %s", strings.Join(strs, " "))
 
 	return scopes, nil
 }
@@ -246,7 +257,7 @@ func ping(client *http.Client, endpoint string) (string, string, error) {
 		}
 	}
 
-	log.Warningf("schemes %v are unsupportted", challenges)
+	log.Warningf("Schemas %v are unsupported", challenges)
 	return "", "", nil
 }
 
@@ -254,7 +265,7 @@ func ping(client *http.Client, endpoint string) (string, string, error) {
 // from token server and add it to the origin request
 // If customizedTokenService is set, the token request will be sent to it instead of the server get from authorizer
 func NewStandardTokenAuthorizer(client *http.Client, credential Credential,
-	customizedTokenService ...string) registry.Modifier {
+	customizedTokenService ...string) modifier.Modifier {
 	generator := &standardTokenGenerator{
 		credential: credential,
 		client:     client,
@@ -267,7 +278,7 @@ func NewStandardTokenAuthorizer(client *http.Client, credential Credential,
 	// 1. performance issue
 	// 2. the realm field returned by registry is an IP which can not reachable
 	// inside Harbor
-	if len(customizedTokenService) > 0 {
+	if len(customizedTokenService) > 0 && len(customizedTokenService[0]) > 0 {
 		generator.realm = customizedTokenService[0]
 	}
 
@@ -309,7 +320,7 @@ func (s *standardTokenGenerator) generate(scopes []*token.ResourceActions, endpo
 
 // NewRawTokenAuthorizer returns a token authorizer which calls method to create
 // token directly
-func NewRawTokenAuthorizer(username, service string) registry.Modifier {
+func NewRawTokenAuthorizer(username, service string) modifier.Modifier {
 	generator := &rawTokenGenerator{
 		service:  service,
 		username: username,

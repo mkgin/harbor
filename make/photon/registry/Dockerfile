@@ -1,18 +1,24 @@
-FROM library/photon:1.0
+FROM photon:2.0
 
 MAINTAINER wangyan@vmware.com
 
 # The original script in the docker offical registry image.
-COPY entrypoint.sh /
-RUN chmod u+x /entrypoint.sh
+RUN tdnf install sudo -y >> /dev/null\
+    && tdnf clean all \
+    && mkdir /harbor/ \
+    && mkdir -p /etc/registry \
+    && groupadd -r -g 10000 harbor && useradd --no-log-init -r -g 10000 -u 10000 harbor  
 
-RUN mkdir -p /etc/docker/registry
-COPY config.yml /etc/docker/registry/config.yml
+COPY ./make/photon/common/install_cert.sh /harbor
+COPY ./make/photon/registry/entrypoint.sh /
+COPY ./make/photon/registry/binary/registry /usr/bin
 
-COPY binary/registry /usr/bin
-RUN chmod u+x /usr/bin/registry
+RUN chmod u+x /entrypoint.sh \
+    && chmod u+x /usr/bin/registry
+
+HEALTHCHECK CMD curl 127.0.0.1:5000/
 
 VOLUME ["/var/lib/registry"]
 EXPOSE 5000
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/etc/docker/registry/config.yml"]
+CMD ["/etc/registry/config.yml"]

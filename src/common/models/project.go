@@ -1,4 +1,4 @@
-// Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+// Copyright Project Harbor Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,50 +15,95 @@
 package models
 
 import (
+	"strings"
 	"time"
 )
 
+// ProjectTable is the table name for project
+const ProjectTable = "project"
+
 // Project holds the details of a project.
-// TODO remove useless attrs
 type Project struct {
-	ProjectID       int64     `orm:"pk;auto;column(project_id)" json:"project_id"`
-	OwnerID         int       `orm:"column(owner_id)" json:"owner_id"`
-	Name            string    `orm:"column(name)" json:"name"`
-	CreationTime    time.Time `orm:"column(creation_time)" json:"creation_time"`
-	CreationTimeStr string    `orm:"-" json:"creation_time_str"`
-	Deleted         int       `orm:"column(deleted)" json:"deleted"`
-	//UserID          int `json:"UserId"`
-	OwnerName string `orm:"-" json:"owner_name"`
-	Public    int    `orm:"column(public)" json:"public"`
-	//This field does not have correspondent column in DB, this is just for UI to disable button
-	Togglable                                  bool      `orm:"-"`
-	UpdateTime                                 time.Time `orm:"update_time" json:"update_time"`
-	Role                                       int       `orm:"-" json:"current_user_role_id"`
-	RepoCount                                  int       `orm:"-" json:"repo_count"`
-	EnableContentTrust                         bool      `orm:"-" json:"enable_content_trust"`
-	PreventVulnerableImagesFromRunning         bool      `orm:"-" json:"prevent_vulnerable_images_from_running"`
-	PreventVulnerableImagesFromRunningSeverity string    `orm:"-" json:"prevent_vulnerable_images_from_running_severity"`
-	AutomaticallyScanImagesOnPush              bool      `orm:"-" json:"automatically_scan_images_on_push"`
+	ProjectID    int64             `orm:"pk;auto;column(project_id)" json:"project_id"`
+	OwnerID      int               `orm:"column(owner_id)" json:"owner_id"`
+	Name         string            `orm:"column(name)" json:"name"`
+	CreationTime time.Time         `orm:"column(creation_time);auto_now_add" json:"creation_time"`
+	UpdateTime   time.Time         `orm:"column(update_time);auto_now" json:"update_time"`
+	Deleted      bool              `orm:"column(deleted)" json:"deleted"`
+	OwnerName    string            `orm:"-" json:"owner_name"`
+	Togglable    bool              `orm:"-" json:"togglable"`
+	Role         int               `orm:"-" json:"current_user_role_id"`
+	RepoCount    int64             `orm:"-" json:"repo_count"`
+	ChartCount   uint64            `orm:"-" json:"chart_count"`
+	Metadata     map[string]string `orm:"-" json:"metadata"`
 }
 
-// ProjectSorter holds an array of projects
-type ProjectSorter struct {
-	Projects []*Project
+// GetMetadata ...
+func (p *Project) GetMetadata(key string) (string, bool) {
+	if len(p.Metadata) == 0 {
+		return "", false
+	}
+	value, exist := p.Metadata[key]
+	return value, exist
 }
 
-// Len returns the length of array in ProjectSorter
-func (ps *ProjectSorter) Len() int {
-	return len(ps.Projects)
+// SetMetadata ...
+func (p *Project) SetMetadata(key, value string) {
+	if p.Metadata == nil {
+		p.Metadata = map[string]string{}
+	}
+	p.Metadata[key] = value
 }
 
-// Less defines the comparison rules of project
-func (ps *ProjectSorter) Less(i, j int) bool {
-	return ps.Projects[i].Name < ps.Projects[j].Name
+// IsPublic ...
+func (p *Project) IsPublic() bool {
+	public, exist := p.GetMetadata(ProMetaPublic)
+	if !exist {
+		return false
+	}
+
+	return isTrue(public)
 }
 
-// Swap swaps the position of i and j
-func (ps *ProjectSorter) Swap(i, j int) {
-	ps.Projects[i], ps.Projects[j] = ps.Projects[j], ps.Projects[i]
+// ContentTrustEnabled ...
+func (p *Project) ContentTrustEnabled() bool {
+	enabled, exist := p.GetMetadata(ProMetaEnableContentTrust)
+	if !exist {
+		return false
+	}
+	return isTrue(enabled)
+}
+
+// VulPrevented ...
+func (p *Project) VulPrevented() bool {
+	prevent, exist := p.GetMetadata(ProMetaPreventVul)
+	if !exist {
+		return false
+	}
+	return isTrue(prevent)
+}
+
+// Severity ...
+func (p *Project) Severity() string {
+	severity, exist := p.GetMetadata(ProMetaSeverity)
+	if !exist {
+		return ""
+	}
+	return severity
+}
+
+// AutoScan ...
+func (p *Project) AutoScan() bool {
+	auto, exist := p.GetMetadata(ProMetaAutoScan)
+	if !exist {
+		return false
+	}
+	return isTrue(auto)
+}
+
+func isTrue(value string) bool {
+	return strings.ToLower(value) == "true" ||
+		strings.ToLower(value) == "1"
 }
 
 // ProjectQueryParam can be used to set query parameters when listing projects.
@@ -71,25 +116,32 @@ func (ps *ProjectSorter) Swap(i, j int) {
 // List projects the owner of which is user1: query := &QueryParam{Owner:"user1"}
 // List all public projects the owner of which is user1: query := &QueryParam{Owner:"user1",Public:true}
 // List projects which user1 is member of: query := &QueryParam{Member:&Member{Name:"user1"}}
-// List projects which user1 is the project admin : query := &QueryParam{Memeber:&Member{Name:"user1",Role:1}}
+// List projects which user1 is the project admin : query := &QueryParam{Member:&Member{Name:"user1",Role:1}}
 type ProjectQueryParam struct {
 	Name       string       // the name of project
 	Owner      string       // the username of project owner
 	Public     *bool        // the project is public or not, can be ture, false and nil
 	Member     *MemberQuery // the member of project
 	Pagination *Pagination  // pagination information
+	ProjectIDs []int64      // project ID list
 }
 
-// MemberQuery fitler by member's username and role
+// MemberQuery filter by member's username and role
 type MemberQuery struct {
-	Name string // the username of member
-	Role int    // the role of the member has to the project
+	Name      string       // the username of member
+	Role      int          // the role of the member has to the project
+	GroupList []*UserGroup // the group list of current user
 }
 
 // Pagination ...
 type Pagination struct {
 	Page int64
 	Size int64
+}
+
+// Sorting sort by given field, ascending or descending
+type Sorting struct {
+	Sort string // in format [+-]?<FIELD_NAME>, e.g. '+creation_time', '-creation_time'
 }
 
 // BaseProjectCollection contains the query conditions which can be used
@@ -102,10 +154,18 @@ type BaseProjectCollection struct {
 
 // ProjectRequest holds informations that need for creating project API
 type ProjectRequest struct {
-	Name                                       string `json:"project_name"`
-	Public                                     int    `json:"public"`
-	EnableContentTrust                         bool   `json:"enable_content_trust"`
-	PreventVulnerableImagesFromRunning         bool   `json:"prevent_vulnerable_images_from_running"`
-	PreventVulnerableImagesFromRunningSeverity string `json:"prevent_vulnerable_images_from_running_severity"`
-	AutomaticallyScanImagesOnPush              bool   `json:"automatically_scan_images_on_push"`
+	Name     string            `json:"project_name"`
+	Public   *int              `json:"public"` // deprecated, reserved for project creation in replication
+	Metadata map[string]string `json:"metadata"`
+}
+
+// ProjectQueryResult ...
+type ProjectQueryResult struct {
+	Total    int64
+	Projects []*Project
+}
+
+// TableName is required by beego orm to map Project to table project
+func (p *Project) TableName() string {
+	return ProjectTable
 }
